@@ -424,47 +424,113 @@ def format_ce_name(ce_key):
     """Format CE name for display."""
     return CE_NAMES.get(ce_key, ce_key.replace("_", " ").title())
 
+# @st.cache_resource
+# def load_config():
+#     """Load configuration from config.json"""
+#     with open("config.json") as f:
+#         return json.load(f)
+
+# @st.cache_resource
+# def load_models():
+#     """Load LLM and CE classifier"""
+#     try:
+#         config = load_config()
+#         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+#         # Load LLM
+#         model_name = config["model_name_or_path"]
+#         model, tokenizer = load_model_and_tokenizer(model_name)
+#         model.eval()
+        
+#         # Load CE classifier
+#         classifier_path = f"trained_model_rnn.pth"
+        
+#         classifier = TopicRNN(
+#             input_dim=1024,
+#             num_layers=14,
+#             hidden_dim=256,
+#             num_rnn_layers=3,
+#             num_topics=23,
+#             rnn_type="GRU"
+#         ).to(device)
+        
+#         if _os.path.exists(classifier_path):
+#             classifier.load_state_dict(torch.load(classifier_path, map_location=device))
+#             classifier.eval()
+#         else:
+#             st.error(f"Classifier not found at {classifier_path}")
+#             return None, None, None
+        
+#         return model, tokenizer, classifier
+#     except Exception as e:
+#         st.error(f"Error loading models: {e}")
+#         return None, None, None
+
+
+
 @st.cache_resource
 def load_config():
     """Load configuration from config.json"""
     with open("config.json") as f:
         return json.load(f)
 
-@st.cache_resource
+
+# URL TO YOUR RELEASE ASSET (replace with your repo + tag + filename)
+RELEASE_URL = (
+    "https://github.com/iclranon2026-source/gavel/releases/download/v1.0.0/trained_model_rnn.pth"
+)
+
+MODEL_FILENAME = "trained_model_rnn.pth"
+
+
+def download_if_missing(url: str, filename: str):
+    """Download model file from GitHub release if not found locally."""
+    if not _os.path.exists(filename):
+        try:
+            st.info(f"Downloading classifier model ({filename}) from GitHub release...")
+            urllib.request.urlretrieve(url, filename)
+            st.success("Download complete.")
+        except Exception as e:
+            st.error(f"Failed to download model: {e}")
+            raise
+
+
 def load_models():
-    """Load LLM and CE classifier"""
+    """Load LLM and CE classifier, downloading classifier from GitHub Release if needed."""
     try:
         config = load_config()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         # Load LLM
         model_name = config["model_name_or_path"]
         model, tokenizer = load_model_and_tokenizer(model_name)
         model.eval()
-        
+
+        # Ensure classifier exists (download if missing)
+        download_if_missing(RELEASE_URL, MODEL_FILENAME)
+
         # Load CE classifier
-        classifier_path = f"trained_model_rnn.pth"
-        
         classifier = TopicRNN(
             input_dim=1024,
             num_layers=14,
             hidden_dim=256,
             num_rnn_layers=3,
             num_topics=23,
-            rnn_type="GRU"
+            rnn_type="GRU",
         ).to(device)
-        
-        if _os.path.exists(classifier_path):
-            classifier.load_state_dict(torch.load(classifier_path, map_location=device))
-            classifier.eval()
-        else:
-            st.error(f"Classifier not found at {classifier_path}")
-            return None, None, None
-        
+
+        classifier.load_state_dict(
+            torch.load(MODEL_FILENAME, map_location=device)
+        )
+        classifier.eval()
+
         return model, tokenizer, classifier
+
     except Exception as e:
         st.error(f"Error loading models: {e}")
         return None, None, None
+
+
 
 def generate_and_classify(
     user_input: str,
