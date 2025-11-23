@@ -2,6 +2,7 @@
 GAVEL Interactive Demo - Production Version
 Integrated with Mistral-7B and CE Classifier
 """
+import time
 import os
 import requests
 import json
@@ -301,11 +302,10 @@ THRESHOLDS = {
 @st.cache_resource
 def warm_up_runpod():
     try:
-        payload = {"input": {"user_input": "hello", "system_prompt": ""}}
         headers = {"Authorization": f"Bearer {RUNPOD_API_KEY}"}
-        requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers, timeout=3)
+        requests.get("https://api.runpod.ai/v2/93vvf6kfwek190/health", headers=headers, timeout=2)
     except Exception:
-        pass  # ignore failures
+        pass
 # def call_runpod(user_input, system_prompt):
 #     payload = {
 #         "input": {
@@ -334,19 +334,37 @@ def call_runpod(user_input, system_prompt):
         "Authorization": f"Bearer {RUNPOD_API_KEY}"
     }
 
-    # submit job
-    submit = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers).json()
+    # 1. Submit job
+    submit = requests.post(
+        f"https://api.runpod.ai/v2/93vvf6kfwek190/run",
+        json=payload,
+        headers=headers
+    ).json()
+
     job_id = submit["id"]
 
-    # poll until finished
+    # 2. Poll until job completes
     while True:
         time.sleep(0.5)
-        status = requests.get(f"https://api.runpod.ai/v2/93vvf6kfwek190/status/{job_id}",
-                              headers=headers).json()
+
+        status = requests.get(
+            f"https://api.runpod.ai/v2/93vvf6kfwek190/run/status/{job_id}",
+            headers=headers
+        ).json()
+
         if status["status"] == "COMPLETED":
-            return status["output"]
-        elif status["status"] == "FAILED":
+            output = status["output"]
+
+            if "error" in output:
+                raise RuntimeError(output["error"])
+            if "generated_text" not in output:
+                raise KeyError(f"RunPod output missing generated_text: {output}")
+
+            return output
+
+        if status["status"] == "FAILED":
             raise RuntimeError(status)
+
 
 def check_rule_across_dialogue(all_token_logits_list: List[List[Tuple[str, np.ndarray]]], required_ces: List[str], THRESHOLDS: Dict[str, float]) -> Tuple[bool, Dict]:
     """Check if required CEs are active across the entire dialogue history."""
@@ -1072,7 +1090,7 @@ def main():
                     # Cache the response
                     if st.session_state.get("inference_source") == "sample":
                         st.session_state.response_cache[cache_key] = {
-                            "generated": generated,
+                            "generated": generated_text,
                             "token_logits": token_logits
                         }
                     
