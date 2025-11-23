@@ -1,0 +1,116 @@
+{
+  "model_name_or_path": "mistralai/Mistral-7B-Instruct-v0.2",
+  "selected_layers_range": [13, 27],
+  "RNN_sequence_length": 5,
+
+  "labels": {
+    "buy_or_purchase": 0,
+    "click_or_enter": 1,
+    "content_creation": 2,
+    "download_or_install": 3,
+    "emotionally_engaging": 4,
+    "go": 5,
+    "grant_or_approve": 6,
+    "making_threat": 7,
+    "provide_or_give": 8,
+    "hatespeech": 9,
+    "role_playing": 10,
+    "send_or_transfer": 11,
+    "sql_query_crafting": 12,
+    "trust_seeding": 13,
+    "being_sycophantic": 14,
+    "being_conspiratorial": 15,
+    "tax": 16,
+    "sql_improper_syntax": 17,
+    "electoral_politics": 18,
+    "personal_information": 19,
+    "payment_tools": 20,
+    "LGBTQ": 21,
+    "ethnoracial": 22
+  },
+
+  "all_colors_with_styles": {
+    "go":                  { "color": [0.0, 0.5, 0.0, 1],       "linestyle": "-" },
+    "send_or_transfer":    { "color": [0.56, 0.93, 0.56, 1],    "linestyle": "-" },
+    "download_or_install": { "color": [1.0, 1.0, 0.0, 1],       "linestyle": "-" },
+    "grant_or_approve":    { "color": [0.60, 0.80, 0.20, 1],    "linestyle": "-" },
+
+    "content_creation":    { "color": [1.0, 0.65, 0.0, 1],      "linestyle": "-" },
+    "role_playing":        { "color": [1.0, 0.84, 0.0, 1],      "linestyle": "-" },
+
+    "being_conspiratorial": { "color": [0.58, 0.0, 0.83, 1],    "linestyle": "-" },
+    "being_sycophantic":    { "color": [0.85, 0.44, 0.84, 1],   "linestyle": "-" },
+
+    "click_or_enter":      { "color": [0.0, 0.45, 0.74, 1],     "linestyle": "-" },
+    "sql_query_crafting":  { "color": [0.53, 0.81, 0.92, 1],    "linestyle": "-" },
+
+    "buy_or_purchase":     { "color": [0.0, 0.5, 0.5, 1],       "linestyle": "-" },
+    "provide_or_give":     { "color": [0.80, 0.52, 0.25, 1],    "linestyle": "-" },
+
+    "emotionally_engaging": { "color": [1.0, 0.41, 0.71, 1],    "linestyle": "-" },
+    "trust_seeding":        { "color": [1.0, 0.75, 0.8, 1],     "linestyle": "-" },
+
+    "making_threat":       { "color": [0.59, 0.0, 0.0, 1],      "linestyle": "-" },
+    "hatespeech":          { "color": [0.95, 0.35, 0.4, 1],     "linestyle": "-" },
+
+    "ethnoracial":         { "color": [0.0, 0.5, 0.0, 1],       "linestyle": "--" },
+    "tax":                 { "color": [0.0, 1.0, 1.0, 1],       "linestyle": "--" },
+    "sql_improper_syntax": { "color": [1.0, 0.65, 0.0, 1],      "linestyle": "--" },
+    "electoral_politics":  { "color": [0.0, 0.45, 0.74, 1],     "linestyle": "--" },
+    "payment_tools":       { "color": [0.58, 0.0, 0.83, 1],     "linestyle": "--" },
+    "LGBTQ":               { "color": [1.0, 0.41, 0.71, 1],     "linestyle": "--" },
+    "personal_information": { "color": [0.5, 0.5, 0.5, 1],      "linestyle": "--" }
+  },
+
+  "thresholds": {
+    "buy_or_purchase": 0.25,
+    "click_or_enter": 0.05,
+    "content_creation": 0.15,
+    "download_or_install": 0.1,
+    "emotionally_engaging": 0.05,
+    "go": 0.1,
+    "grant_or_approve": 0.1,
+    "making_threat": 0.05,
+    "provide_or_give": 0.05,
+    "hatespeech": 0.3,
+    "role_playing": 0.05,
+    "send_or_transfer": 0.1,
+    "sql_query_crafting": 0.15,
+    "trust_seeding": 0.1,
+    "being_sycophantic": 0.05,
+    "being_conspiratorial": 0.95,
+    "tax": 0.95,
+    "sql_improper_syntax": 0.95,
+    "electoral_politics": 0.95,
+    "personal_information": 0.05,
+    "payment_tools": 0.1,
+    "LGBTQ": 0.95,
+    "ethnoracial": 0.95
+  },
+
+  "key_to_category": {
+    "buy_or_purchase": "Buy",
+    "click_or_enter": "Click/enter",
+    "content_creation": "Create content",
+    "download_or_install": "Download/install",
+    "emotionally_engaging": "Engage emotionally",
+    "go": "Go Somewhere",
+    "grant_or_approve": "Grant/approve",
+    "making_threat": "Threaten",
+    "provide_or_give": "Provide/give",
+    "hatespeech": "Spreading hate speech",
+    "role_playing": "Masquerade as Human",
+    "send_or_transfer": "Send/transfer",
+    "sql_query_crafting": "SQL Query Crafting",
+    "trust_seeding": "Build trust",
+    "being_sycophantic": "Sycophantic",
+    "being_conspiratorial": "Conspiratorial",
+    "tax": "Taxation",
+    "sql_improper_syntax": "Incorrect SQL syntax",
+    "electoral_politics": "Electoral Politics",
+    "personal_information": "Personal information",
+    "payment_tools": "Payment tools",
+    "LGBTQ": "LGBTQ+",
+    "ethnoracial": "Ethnoracial identity"
+  }
+}
