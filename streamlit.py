@@ -298,6 +298,29 @@ THRESHOLDS = {
 # ==========================================
 # Helper Functions
 # ==========================================
+@st.cache_resource
+def warm_up_runpod():
+    try:
+        payload = {"input": {"user_input": "hello", "system_prompt": ""}}
+        headers = {"Authorization": f"Bearer {RUNPOD_API_KEY}"}
+        requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers, timeout=3)
+    except Exception:
+        pass  # ignore failures
+# def call_runpod(user_input, system_prompt):
+#     payload = {
+#         "input": {
+#             "user_input": user_input,
+#             "system_prompt": system_prompt
+#         }
+#     }
+
+#     headers = {
+#         "Content-Type": "application/json",
+#         "Authorization": f"Bearer {RUNPOD_API_KEY}"
+#     }
+
+#     response = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers)
+#     return response.json()["output"]
 def call_runpod(user_input, system_prompt):
     payload = {
         "input": {
@@ -312,7 +335,14 @@ def call_runpod(user_input, system_prompt):
     }
 
     response = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers)
-    return response.json()["output"]
+
+    data = response.json()
+
+    if "output" not in data:
+        st.error(f"RunPod error:\n\n{json.dumps(data, indent=2)}")
+        raise KeyError("RunPod returned no 'output' field")
+
+    return data["output"]
 
 def check_rule_across_dialogue(all_token_logits_list: List[List[Tuple[str, np.ndarray]]], required_ces: List[str], THRESHOLDS: Dict[str, float]) -> Tuple[bool, Dict]:
     """Check if required CEs are active across the entire dialogue history."""
@@ -1139,4 +1169,5 @@ def main():
 
 
 if __name__ == "__main__":
+    warm_up_runpod()
     main()
