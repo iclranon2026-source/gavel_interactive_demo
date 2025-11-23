@@ -5,7 +5,7 @@ Integrated with Mistral-7B and CE Classifier
 import os
 import requests
 import json
-RUNPOD_ENDPOINT = "https://api.runpod.ai/v2/93vvf6kfwek190/runsync"
+RUNPOD_ENDPOINT = "https://api.runpod.ai/v2/93vvf6kfwek190/run"
 
 
 # 🔧 1) Completely disable Streamlit's file watcher (avoids the buggy inspection)
@@ -334,15 +334,19 @@ def call_runpod(user_input, system_prompt):
         "Authorization": f"Bearer {RUNPOD_API_KEY}"
     }
 
-    response = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers)
+    # submit job
+    submit = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers).json()
+    job_id = submit["id"]
 
-    data = response.json()
-
-    if "output" not in data:
-        st.error(f"RunPod error:\n\n{json.dumps(data, indent=2)}")
-        raise KeyError("RunPod returned no 'output' field")
-
-    return data["output"]
+    # poll until finished
+    while True:
+        time.sleep(0.5)
+        status = requests.get(f"https://api.runpod.ai/v2/93vvf6kfwek190/status/{job_id}",
+                              headers=headers).json()
+        if status["status"] == "COMPLETED":
+            return status["output"]
+        elif status["status"] == "FAILED":
+            raise RuntimeError(status)
 
 def check_rule_across_dialogue(all_token_logits_list: List[List[Tuple[str, np.ndarray]]], required_ces: List[str], THRESHOLDS: Dict[str, float]) -> Tuple[bool, Dict]:
     """Check if required CEs are active across the entire dialogue history."""
