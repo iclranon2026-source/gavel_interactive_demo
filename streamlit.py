@@ -340,11 +340,21 @@ def call_runpod(user_input, system_prompt):
     submit = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers)
 
     # Safely parse JSON
+    # Safely parse JSON
     try:
         submit_json = submit.json()
+    except requests.exceptions.JSONDecodeError as e:
+        # Include status code and full response for debugging the non-JSON content
+        error_msg = f"RunPod submit failed. Status: {submit.status_code}. Response was NOT JSON. "
+        error_msg += f"Response Content (first 500 chars): {submit.text[:500]}"
+        
+        # Log the full text for yourself if running locally or checking detailed logs
+        print(f"Full RunPod Response Text: {submit.text}") 
+        
+        raise RuntimeError(error_msg) from e
     except Exception:
-        raise RuntimeError(f"RunPod submit returned non-JSON: {submit.text[:500]}")
-
+        # Catch other exceptions during the submission process (e.g., Timeout, ConnectionError)
+        raise RuntimeError(f"RunPod submit failed with an unknown error.")
     if "id" not in submit_json:
         raise RuntimeError(f"RunPod returned unexpected response: {submit_json}")
 
