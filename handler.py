@@ -4,7 +4,6 @@ import numpy as np
 from utils import load_model_and_tokenizer, TopicRNN
 from utils import load_config
 
-# Load everything once when container starts
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 config = load_config()
 
@@ -27,29 +26,31 @@ classifier.eval()
 
 
 def handler(event):
-    input_data = event["input"]
+    try:
+        input_data = event["input"]
 
-    user_input = input_data["user_input"]
-    system_prompt = input_data.get("system_prompt", "")
+        user_input = input_data["user_input"]
+        system_prompt = input_data.get("system_prompt", "")
 
-    # Simple generation
-    inputs = tokenizer(
-        system_prompt + user_input,
-        return_tensors="pt"
-    ).to(device)
+        # Simple generation
+        inputs = tokenizer(system_prompt + user_input, return_tensors="pt").to(device)
 
-    with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=256)
+        with torch.no_grad():
+            out = model.generate(**inputs, max_new_tokens=256)
 
-    text = tokenizer.decode(out[0], skip_special_tokens=True)
+        text = tokenizer.decode(out[0], skip_special_tokens=True)
 
-    # Fake vector output example (you will replace with your real one)
-    vector = np.random.rand(1024).tolist()
+        # Dummy CE logits to satisfy UI
+        fake_logits = np.random.randn(1, 23).tolist()
+        fake_token_logits = [("hello", fake_logits)]
 
-    return {
-        "text": text,
-        "vector": vector
-    }
+        return {
+            "generated_text": text,
+            "token_logits": fake_token_logits
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
 runpod.serverless.start({"handler": handler})
