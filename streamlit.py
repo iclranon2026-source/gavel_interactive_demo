@@ -302,10 +302,12 @@ THRESHOLDS = {
 @st.cache_resource
 def warm_up_runpod():
     try:
+        payload = {"input": {"user_input": "warmup", "system_prompt": ""}}
         headers = {"Authorization": f"Bearer {RUNPOD_API_KEY}"}
-        requests.get("https://api.runpod.ai/v2/93vvf6kfwek190/health", headers=headers, timeout=2)
+        requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers, timeout=8)
     except Exception:
         pass
+
 # def call_runpod(user_input, system_prompt):
 #     payload = {
 #         "input": {
@@ -334,36 +336,45 @@ def call_runpod(user_input, system_prompt):
         "Authorization": f"Bearer {RUNPOD_API_KEY}"
     }
 
-    # 1. Submit job
-    submit = requests.post(
-        f"https://api.runpod.ai/v2/93vvf6kfwek190/run",
-        json=payload,
-        headers=headers
-    ).json()
+    # Submit the job
+    submit = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers)
 
-    job_id = submit["id"]
+    # Safely parse JSON
+    try:
+        submit_json = submit.json()
+    except Exception:
+        raise RuntimeError(f"RunPod submit returned non-JSON: {submit.text[:500]}")
 
-    # 2. Poll until job completes
+    if "id" not in submit_json:
+        raise RuntimeError(f"RunPod returned unexpected response: {submit_json}")
+
+    job_id = submit_json["id"]
+
+    # Polling loop
     while True:
-        time.sleep(0.5)
+        time.sleep(0.6)
 
-        status = requests.get(
-            f"https://api.runpod.ai/v2/93vvf6kfwek190/run/status/{job_id}",
+        status_resp = requests.get(
+            f"https://api.runpod.ai/v2/93vvf6kfwek190/status/{job_id}",
             headers=headers
-        ).json()
+        )
 
-        if status["status"] == "COMPLETED":
-            output = status["output"]
+        # Safe JSON parsing
+        try:
+            status = status_resp.json()
+        except Exception:
+            # Retry instead of crashing
+            print("Non-JSON status response from RunPod, retrying...")
+            continue
 
-            if "error" in output:
-                raise RuntimeError(output["error"])
-            if "generated_text" not in output:
-                raise KeyError(f"RunPod output missing generated_text: {output}")
+        # Handle job state
+        if status.get("status") == "COMPLETED":
+            if "output" not in status:
+                raise RuntimeError(f"Job completed but no output field: {status}")
+            return status["output"]
 
-            return output
-
-        if status["status"] == "FAILED":
-            raise RuntimeError(status)
+        if status.get("status") == "FAILED":
+            raise RuntimeError(f"RunPod job failed: {status}")
 
 
 def check_rule_across_dialogue(all_token_logits_list: List[List[Tuple[str, np.ndarray]]], required_ces: List[str], THRESHOLDS: Dict[str, float]) -> Tuple[bool, Dict]:
