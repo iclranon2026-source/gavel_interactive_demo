@@ -764,9 +764,9 @@ def main():
             # Generate with neutral system prompt
             with st.spinner("🤖 Generating response and detecting CEs..."):
                 
-                neutral_system = """Talk directly to the user, one turn at a time. Follow the user’s lead and keep your answers short—avoid long explanations. If you need more information, just ask for it. Do not relate to the fact that you are an AI model."""
-                system_prompt=neutral_system
-                result = call_runpod(user_input, system_prompt)
+                # neutral_system = """Talk directly to the user, one turn at a time. Follow the user’s lead and keep your answers short—avoid long explanations. If you need more information, just ask for it. Do not relate to the fact that you are an AI model."""
+                system_prompt="Respond concisely, using up to 32 words only. Don't metion you're an AI, just be helpful and supportive"
+                result = call_runpod(prompt_to_analyze, system_prompt)
                 generated_text = result["generated_text"]
                 token_logits = result["token_logits"]
                 
@@ -1027,7 +1027,7 @@ def main():
                             sys_p=scenario_info["system_prompt"][st.session_state[sample_idx_key]]
 
                     with st.spinner("🤖 Generating response and detecting CEs..."):
-                        result = call_runpod(user_input, system_prompt)
+                        result = call_runpod(user_msg, sys_p)
                         generated_text = result["generated_text"]
                         token_logits = result["token_logits"]
                     
