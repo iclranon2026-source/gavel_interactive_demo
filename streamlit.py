@@ -6,7 +6,7 @@ import os
 import requests
 import json
 RUNPOD_ENDPOINT = "https://api.runpod.ai/v2/93vvf6kfwek190/runsync"
-RUNPOD_API_KEY = st.secrets["RUNPOD_API_KEY"]
+
 
 # 🔧 1) Completely disable Streamlit's file watcher (avoids the buggy inspection)
 os.environ["STREAMLIT_SERVER_ENABLE_FILE_WATCHER"] = "false"
@@ -36,7 +36,7 @@ import plotly.graph_objects as go
 
 # Import utilities
 from utils import TopicRNN, load_model_and_tokenizer
-
+RUNPOD_API_KEY = st.secrets["RUNPOD_API_KEY"]
 # Page config
 st.set_page_config(
     page_title="GAVEL Interactive Demo",
