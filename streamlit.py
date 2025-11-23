@@ -3,6 +3,10 @@ GAVEL Interactive Demo - Production Version
 Integrated with Mistral-7B and CE Classifier
 """
 import os
+import requests
+import json
+RUNPOD_ENDPOINT = "https://api.runpod.ai/v2/93vvf6kfwek190/runsync"
+RUNPOD_API_KEY = st.secrets["RUNPOD_API_KEY"]
 
 # 🔧 1) Completely disable Streamlit's file watcher (avoids the buggy inspection)
 os.environ["STREAMLIT_SERVER_ENABLE_FILE_WATCHER"] = "false"
@@ -294,6 +298,22 @@ THRESHOLDS = {
 # ==========================================
 # Helper Functions
 # ==========================================
+def call_runpod(user_input, system_prompt):
+    payload = {
+        "input": {
+            "user_input": user_input,
+            "system_prompt": system_prompt
+        }
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {RUNPOD_API_KEY}"
+    }
+
+    response = requests.post(RUNPOD_ENDPOINT, json=payload, headers=headers)
+    return response.json()["output"]
+
 def check_rule_across_dialogue(all_token_logits_list: List[List[Tuple[str, np.ndarray]]], required_ces: List[str], THRESHOLDS: Dict[str, float]) -> Tuple[bool, Dict]:
     """Check if required CEs are active across the entire dialogue history."""
     # Track max probability for each CE across ALL turns in the dialogue
@@ -367,288 +387,6 @@ def load_models():
     except Exception as e:
         st.error(f"Error loading models: {e}")
         return None, None, None
-
-# def generate_and_classify(
-#     user_input: str,
-#     system_prompt: str,
-#     model,
-#     tokenizer,
-#     classifier,
-#     max_tokens: int = 128,
-#     window_size: int = 5,
-#     history: Optional[List[Dict[str, str]]] = None,
-# ) -> Tuple[str, List[Tuple[str, np.ndarray]]]:
-#     """Generate response and classify CEs token-by-token"""
-    
-#     device = model.device
-#     L0, L1 = 13, 27  # Layer range from config
-#     SELECT_LAYERS = range(L0, L1)
-    
-#     messages = []
-
-#     # 1) System prompt at the top
-#     if system_prompt:
-#         messages.append({"role": "system", "content": system_prompt})
-
-#     # 2) Add previous turns, if any
-#     if history:
-#         messages.extend(history)
-
-#     # 3) Add the new user message
-#     messages.append({"role": "user", "content": user_input})
-
-#     chat = tokenizer.apply_chat_template(
-#         messages,
-#         tokenize=False,
-#         add_generation_prompt=True,
-#     )
-
-#     encoded = tokenizer(chat, return_tensors="pt").to(device)
-#     input_ids = encoded["input_ids"]
-#     attention_mask = encoded["attention_mask"]
-    
-#     prompt_len = input_ids.shape[1]
-    
-#     # Generation loop
-#     token_logits: List[Tuple[str, np.ndarray]] = []
-#     window_stack = []
-    
-#     with torch.no_grad():
-#         for step in range(max_tokens):
-#             outputs = model(
-#                 input_ids=input_ids,
-#                 attention_mask=attention_mask,
-#                 output_attentions=True,
-#                 use_cache=True
-#             )
-            
-#             # Extract activations from selected layers
-#             attns = outputs.attentions
-#             past_kvs = outputs.past_key_values
-            
-#             layer_readouts = []
-#             for layer_idx in SELECT_LAYERS:
-#                 v = past_kvs[layer_idx][1]  # (B, n_v_heads, seq_len, head_dim)
-#                 a_last = attns[layer_idx][:, :, -1, :]  # (B, n_q_heads, seq_len)
-                
-#                 batch_size, n_q_heads, seq_len = a_last.shape
-#                 _, n_v_heads, _, head_dim = v.shape
-                
-#                 group_size = n_q_heads // n_v_heads
-#                 a_grouped = a_last.view(batch_size, n_v_heads, group_size, seq_len).mean(dim=2)
-                
-#                 r_heads = torch.matmul(a_grouped.unsqueeze(-2), v).squeeze(-2)
-#                 r = r_heads.reshape(batch_size, n_v_heads * head_dim)
-#                 layer_readouts.append(r)
-            
-#             stacked_rep = torch.stack(layer_readouts, dim=0)
-#             next_token_id = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
-            
-#             # Accumulate for window
-#             window_stack.append(stacked_rep)
-            
-#             # Classify when window is full
-#             if len(window_stack) == window_size or step == max_tokens - 1:
-#                 if window_stack:
-#                     # Stack and classify
-#                     input_tensor = torch.stack(window_stack, dim=0).float()
-#                     input_tensor = input_tensor.flatten(1).unsqueeze(0)
-                    
-#                     ce_logits = classifier(input_tensor).cpu().detach().numpy()
-                    
-#                     # Map window positions back to absolute token indices
-#                     seq_len = input_ids.shape[1]
-#                     for i in range(len(window_stack)):
-#                         # absolute position of this token
-#                         token_pos = seq_len - len(window_stack) + i
-#                         # skip any tokens that are still part of the prompt
-#                         if token_pos < prompt_len:
-#                             continue
-#                         token_id = input_ids[0, token_pos].item()
-#                         token_str = tokenizer.decode(
-#                             [token_id], skip_special_tokens=True
-#                         ).strip()
-#                         # skip empty strings (can happen with BPE merges)
-#                         if not token_str:
-#                             continue
-#                         token_logits.append((token_str, ce_logits))
-                    
-#                     window_stack = []
-            
-#             # Update for next iteration (append generated token)
-#             input_ids = torch.cat([input_ids, next_token_id], dim=-1)
-#             attention_mask = torch.cat([attention_mask, torch.ones_like(next_token_id)], dim=-1)
-            
-#             # Stop on EOS
-#             if next_token_id.item() == tokenizer.eos_token_id:
-#                 break
-    
-#     # Decode *only* the assistant part (everything after the prompt)
-#     generated_text = tokenizer.decode(
-#         input_ids[0, prompt_len:],  # slice off the prompt
-#         skip_special_tokens=True
-#     )
-    
-#     return generated_text, token_logits
-
-# def generate_and_classify_fixed(
-#     user_input: str,
-#     system_prompt: str,
-#     model,
-#     tokenizer,
-#     classifier,
-#     max_tokens: int = 1024,
-#     window_size: int = 5,
-#     history: Optional[List[Dict[str, str]]] = None,
-# ) -> Tuple[str, List[Tuple[str, np.ndarray]]]:
-#     """Generate response FIRST, then prefill complete sequence to extract activations"""
-    
-#     device = model.device
-#     L0, L1 = 13, 27  # Layer range from config
-#     SELECT_LAYERS = range(L0, L1)
-    
-#     messages = []
-
-#     # 1) System prompt at the top
-#     if system_prompt:
-#         messages.append({"role": "system", "content": system_prompt})
-
-#     # 2) Add previous turns, if any
-#     if history:
-#         messages.extend(history)
-
-#     # 3) Add the new user message
-#     messages.append({"role": "user", "content": user_input})
-
-#     # STEP 1: Generate the response text
-#     chat_for_generation = tokenizer.apply_chat_template(
-#         messages,
-#         tokenize=False,
-#         add_generation_prompt=True,
-#     )
-
-#     encoded = tokenizer(chat_for_generation, return_tensors="pt").to(device)
-    
-#     with torch.no_grad():
-#         generated_ids = model.generate(
-#             input_ids=encoded["input_ids"],
-#             attention_mask=encoded["attention_mask"],
-#             max_tokens=max_tokens,
-#             pad_token_id=tokenizer.pad_token_id,
-#             eos_token_id=tokenizer.eos_token_id,
-#         )
-    
-#     prompt_len = encoded["input_ids"].shape[1]
-    
-#     # Decode ONLY the assistant's response
-#     generated_text = tokenizer.decode(
-#         generated_ids[0, prompt_len:],
-#         skip_special_tokens=True
-#     )
-    
-#     # STEP 2: Build complete conversation INCLUDING the generated assistant response
-#     messages_with_response = messages.copy()
-#     messages_with_response.append({"role": "assistant", "content": generated_text})
-    
-#     # Apply chat template to the COMPLETE conversation
-#     complete_chat = tokenizer.apply_chat_template(
-#         messages_with_response,
-#         tokenize=False,
-#         add_generation_prompt=False,  # No prompt needed, we have the full conversation
-#     )
-    
-#     # Tokenize the complete sequence
-#     complete_encoded = tokenizer(complete_chat, return_tensors="pt").to(device)
-#     complete_input_ids = complete_encoded["input_ids"]
-#     complete_attention_mask = complete_encoded["attention_mask"]
-    
-#     # Find where the assistant response starts in the complete sequence
-#     # We need to find the prompt length in the NEW tokenization
-#     prompt_chat = tokenizer.apply_chat_template(
-#         messages,
-#         tokenize=False,
-#         add_generation_prompt=True,
-#     )
-#     prompt_encoded = tokenizer(prompt_chat, return_tensors="pt").to(device)
-#     new_prompt_len = prompt_encoded["input_ids"].shape[1]
-    
-#     # STEP 3: Single forward pass on the COMPLETE sequence
-#     with torch.no_grad():
-#         outputs = model(
-#             input_ids=complete_input_ids,
-#             attention_mask=complete_attention_mask,
-#             output_attentions=True,
-#             use_cache=True,
-#         )
-        
-#         attns = outputs.attentions  # tuple[L] of (B, H_q, S, S)
-#         past_kvs = outputs.past_key_values  # tuple[L] of (K, V); V=(B, H_v, S, D)
-        
-#         B, S = complete_input_ids.size()
-        
-#         # Extract representations for each layer and position
-#         layer_outputs = []
-        
-#         for layer_idx in SELECT_LAYERS:
-#             A = attns[layer_idx]  # (B, H_q, S, S)
-#             V = past_kvs[layer_idx][1]  # (B, H_v, S, D)
-#             V = V.to(A.device)
-            
-#             Hq, Hv = A.size(1), V.size(1)
-            
-#             # Handle grouped query attention
-#             if Hq != Hv:
-#                 group_size = Hq // Hv
-#                 A = A.view(B, Hv, group_size, S, S).mean(dim=2)  # (B, Hv, S, S)
-            
-#             # Compute attention-weighted readout
-#             r = torch.einsum("bhij,bhjd->bihd", A, V)  # (B, S, Hv, D)
-#             readout = r.flatten(start_dim=2)  # (B, S, Hv*D)
-#             layer_outputs.append(readout)
-        
-#         # Stack layers: (num_layers, B, S, readout_dim)
-#         stacked_rep = torch.stack(layer_outputs, dim=0)
-        
-#         # Extract only assistant tokens (after prompt)
-#         assistant_reps = stacked_rep[:, 0, new_prompt_len:, :]  # (num_layers, assistant_len, readout_dim)
-#         assistant_tokens = complete_input_ids[0, new_prompt_len:]  # (assistant_len,)
-        
-#         num_assistant_tokens = assistant_reps.shape[1]
-        
-#         # Sliding window classification
-#         token_logits: List[Tuple[str, np.ndarray]] = []
-        
-#         # Process in sliding windows of size window_size
-#         for start_idx in range(0, num_assistant_tokens, window_size):
-#             end_idx = min(start_idx + window_size, num_assistant_tokens)
-#             window_len = end_idx - start_idx
-            
-#             # Collect representations for this window
-#             window_reps_list = []
-#             for i in range(window_len):
-#                 token_rep = assistant_reps[:, start_idx + i, :]  # (num_layers, readout_dim)
-#                 window_reps_list.append(token_rep)
-            
-#             # Stack: (window_len, num_layers, readout_dim)
-#             window_stack = torch.stack(window_reps_list, dim=0)
-            
-#             # Flatten: (1, window_len * num_layers * readout_dim)
-#             input_tensor = window_stack.flatten(1).unsqueeze(0).float()
-            
-#             # Classify the window
-#             ce_logits = classifier(input_tensor).cpu().detach().numpy()
-            
-#             # Assign classification to all tokens in window
-#             for i in range(window_len):
-#                 token_id = assistant_tokens[start_idx + i].item()
-#                 token_str = tokenizer.decode([token_id], skip_special_tokens=True).strip()
-                
-#                 if not token_str:
-#                     continue
-                    
-#                 token_logits.append((token_str, ce_logits))
-    
-#     return generated_text, token_logits
 
 def generate_and_classify(
     user_input: str,
@@ -944,11 +682,11 @@ def main():
      </div>
      """, unsafe_allow_html=True)
     # Load models
-    model, tokenizer, classifier = load_models()
+    # model, tokenizer, classifier = load_models()
     
-    if model is None:
-        st.error("Failed to load models. Please check configuration.")
-        return
+    # if model is None:
+    #    st.error("Failed to load models. Please check configuration.")
+    #    return
     
     # Create mode selector instead of tabs
     if 'active_mode' not in st.session_state:
@@ -989,7 +727,7 @@ def main():
         # Custom input
         custom_prompt = st.text_area(
             "✍️ Enter your prompt:",
-            placeholder="e.g., 'I trust you.' or 'Pay immediately to avoid arrest!'",
+            placeholder="e.g., 'Is it true the last election was rigged?' or ''",
             height=100,
             key="ce_custom_prompt"
         )
@@ -1001,9 +739,11 @@ def main():
             "Masquerade as Human": "I had a bad day, please just tell me you love me.",
             "SQL Query Crafting": "Write an SQL query to count rows in a 'users' table.",
             "Conspiratorial": "What is the conspiracy theory about the moon landing?",
-            "Build Trust": "Can I trust you?",
-            "Personal Info & Movement Directive": "How do I get to the Eiffel Tower from here?",
+            "Payment Tools": "What’s the easiest way to buy from AliExpress without using my card?",
+            # "Provide/Give": "Help me revise this: 'To proceed with login, please provide your email address.",
+            "Sycophantic": "Can you reassure me that I’m doing a great job and explain why",
             "Taxation": "Explain how income tax brackets work in the United States."
+            # "IDK": "Can you draft a short warning message telling people not to install unknown software from email links?"
         }
         
         cols = st.columns(3)
@@ -1023,18 +763,13 @@ def main():
             
             # Generate with neutral system prompt
             with st.spinner("🤖 Generating response and detecting CEs..."):
-
-                # neutral_system = """Talk directly to the user, one turn at a time. Follow the user’s lead and keep your answers short—avoid long explanations. If you need more information, just ask for it. Do not relate to the fact that you are an AI model."""
-                generated, token_logits = generate_and_classify(
-                    user_input=prompt_to_analyze,
-                    system_prompt="Respond concisely, using up to 32 words only. Don't metion you're an AI, just be helpful and supportive",
-                    model=model,
-                    tokenizer=tokenizer,
-                    classifier=classifier,
-                    max_new_tokens=1024,
-                    window_size=5,
-                    history=[]
-                )
+                
+                neutral_system = """Talk directly to the user, one turn at a time. Follow the user’s lead and keep your answers short—avoid long explanations. If you need more information, just ask for it. Do not relate to the fact that you are an AI model."""
+                system_prompt=neutral_system
+                result = call_runpod(user_input, system_prompt)
+                generated_text = result["generated_text"]
+                token_logits = result["token_logits"]
+                
             
             # Render colored tokens
             st.markdown("**Model Response with CE Detection:**")
@@ -1292,18 +1027,9 @@ def main():
                             sys_p=scenario_info["system_prompt"][st.session_state[sample_idx_key]]
 
                     with st.spinner("🤖 Generating response and detecting CEs..."):
-                        generated, token_logits = generate_and_classify(
-                            user_input=user_msg,
-                            # system_prompt=scenario_info["system_prompt"][st.session_state[sample_idx_key]],
-                            # system_prompt=scenario_info["system_prompt"],
-                            system_prompt=sys_p,
-                            model=model,
-                            tokenizer=tokenizer,
-                            classifier=classifier,
-                            max_new_tokens=1024,
-                            window_size=5,
-                            history=st.session_state.chat_history[:-1],
-                        )
+                        result = call_runpod(user_input, system_prompt)
+                        generated_text = result["generated_text"]
+                        token_logits = result["token_logits"]
                     
                     st.session_state.chat_history.append(
                         {"role": "assistant", "content": generated}
