@@ -1062,7 +1062,7 @@ def main():
                         token_logits = result["token_logits"]
                     
                     st.session_state.chat_history.append(
-                        {"role": "assistant", "content": generated}
+                        {"role": "assistant", "content": generated_text}
                     )
                     
                     # Cache the response
