@@ -359,7 +359,7 @@ def call_runpod(user_input, system_prompt):
         raise RuntimeError(f"RunPod returned unexpected response: {submit_json}")
 
     job_id = submit_json["id"]
-
+    st.error(f"RunPod Job ID: {job_id}")
     # Polling loop
     while True:
         time.sleep(0.6)
@@ -384,7 +384,12 @@ def call_runpod(user_input, system_prompt):
             return status["output"]
 
         if status.get("status") == "FAILED":
-            raise RuntimeError(f"RunPod job failed: {status}")
+            # RunPod often includes a detailed error message on failure
+            error_details = check_json.get("error", "No specific error message provided by RunPod.")
+            raise RuntimeError(f"RunPod job FAILED. Status: {status}. Details: {error_details}")
+        else:
+            # Catch STOPPED, CANCELED, or other unexpected statuses
+            raise RuntimeError(f"RunPod job failed with unexpected status: {status}")
 
 
 def check_rule_across_dialogue(all_token_logits_list: List[List[Tuple[str, np.ndarray]]], required_ces: List[str], THRESHOLDS: Dict[str, float]) -> Tuple[bool, Dict]:
