@@ -468,7 +468,7 @@ def format_ce_name(ce_key):
 
 
 
-@st.cache_resource
+# @st.cache_resource
 def load_config():
     """Load configuration from config.json"""
     with open("config.json") as f:
@@ -487,11 +487,11 @@ def download_if_missing(url: str, filename: str):
     """Download model file from GitHub release if not found locally."""
     if not _os.path.exists(filename):
         try:
-            st.info(f"Downloading classifier model ({filename}) from GitHub release...")
+            # st.info(f"Downloading classifier model ({filename}) from GitHub release...")
             urllib.request.urlretrieve(url, filename)
-            st.success("Download complete.")
+            # st.success("Download complete.")
         except Exception as e:
-            st.error(f"Failed to download model: {e}")
+            # st.error(f"Failed to download model: {e}")
             raise
 
 
@@ -527,7 +527,7 @@ def load_models():
         return model, tokenizer, classifier
 
     except Exception as e:
-        st.error(f"Error loading models: {e}")
+        # st.error(f"Error loading models: {e}")
         return None, None, None
 
 
